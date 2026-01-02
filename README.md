@@ -1,5 +1,4 @@
-# sendpkt
-Interactive Raw Packet Generator &amp; Sender
+sendpkt  — Interactive Raw Packet Generator & Sender
 
 sendpkt 是一个基于 Linux + C 语言 + Raw Socket 的交互式网络报文构造与发送工具。
 它通过 JSON preset 配置文件 描述一个完整的网络帧（Ethernet → VLAN → IPv4 → TCP/UDP → Payload），允许用户在交互过程中逐字段修改，最终将报文：

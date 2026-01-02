@@ -1,0 +1,442 @@
+{
+  "meta": {
+    "preset_name": "full_frame_ipv4_tcp_udp_detailed",
+    "description": "完整详尽的单一 preset：支持 L2 (Ethernet/VLAN) -> IPv4 -> TCP/UDP，包含位域、选项、分片、校验和覆盖与自动计算等详细字段",
+    "author": "stream",
+    "created": "2025-12-14"
+  },
+  "send_backend": "af_inet",
+  "iface": "eth0",
+  "prompt_order": [
+    "layer_choice",
+    "ethernet",
+    "vlan",
+    "ip",
+    "fragment",
+    "transport_choice",
+    "tcp",
+    "udp",
+    "payload",
+    "send",
+    "advanced"
+  ],
+  "layers": {
+    "layer_choice": {
+      "label": "起始层选择",
+      "type": "choice",
+      "choices": ["ethernet", "ip"],
+      "default": "ip",
+      "help": "选择从哪一层开始交互；若需要精确控制 MAC/VLAN，选择 ethernet 并使用 af_packet backend"
+    },
+    "ethernet": {
+      "enabled": true,
+      "fields": {
+        "dst_mac": {
+          "label": "目的 MAC (DMAC)",
+          "type": "mac",
+          "default": "ff:ff:ff:ff:ff:ff",
+          "help": "目标以太网地址，格式 6 段十六进制（xx:xx:xx:xx:xx:xx）"
+        },
+        "src_mac": {
+          "label": "源 MAC (SMAC)",
+          "type": "mac",
+          "default": "00:11:22:33:44:55",
+          "help": "发送帧的源 MAC"
+        },
+        "ethertype": {
+          "label": "EtherType",
+          "type": "hex16",
+          "default": "0x0800",
+          "help": "0x0800 表示 IPv4；0x8100 表示 VLAN tag 后跟 inner EtherType"
+        }
+      }
+    },
+    "vlan": {
+      "enabled": true,
+      "fields": {
+        "present": {
+          "label": "是否包含 VLAN Tag",
+          "type": "bool",
+          "default": false,
+          "help": "若为 true，则按 802.1Q 在以太网头插入 4 字节 VLAN 标签"
+        },
+        "tpid": {
+          "label": "TPID (VLAN EtherType)",
+          "type": "hex16",
+          "default": "0x8100",
+          "help": "通常为 0x8100"
+        },
+        "tci": {
+          "label": "TCI (Priority + CFI + VLAN ID)",
+          "type": "hex16",
+          "default": "0x0001",
+          "help": "16 位：[3 bits PCP][1 bit DEI/CFI][12 bits VLAN ID]，也可填写 decimal VLAN ID 并由程序转换"
+        },
+        "vlan_id": {
+          "label": "VLAN ID (0-4095)",
+          "type": "int",
+          "default": 1,
+          "help": "便于用户用 VLAN ID 填写而非直接计算 tci"
+        },
+        "pcp": {
+          "label": "Priority Code Point (PCP)",
+          "type": "int",
+          "default": 0,
+          "help": "0-7"
+        },
+        "dei": {
+          "label": "Drop Eligible Indicator (DEI)",
+          "type": "int",
+          "default": 0,
+          "help": "0 或 1"
+        }
+      }
+    },
+    "ip": {
+      "enabled": true,
+      "fields": {
+        "version": {
+          "label": "IP 版本",
+          "type": "int",
+          "default": 4,
+          "help": "仅支持 IPv4（4）"
+        },
+        "ihl": {
+          "label": "IHL (Header Length) - 32-bit words",
+          "type": "int_or_auto",
+          "default": "auto",
+          "help": "默认 auto：根据 options 自动计算；最小为 5"
+        },
+        "dscp": {
+          "label": "DSCP (6 bits of TOS)",
+          "type": "int",
+          "default": 0,
+          "help": "0-63"
+        },
+        "ecn": {
+          "label": "ECN (2 bits of TOS)",
+          "type": "int",
+          "default": 0,
+          "help": "0-3"
+        },
+        "tos": {
+          "label": "TOS (完整十六进制表示，可与 dscp/ecn 同时使用)",
+          "type": "hex8_or_auto",
+          "default": "auto",
+          "help": "若填写 'auto'，优先使用 dscp/ecn 组合生成"
+        },
+        "total_length": {
+          "label": "Total Length (字节)",
+          "type": "int_or_auto",
+          "default": "auto",
+          "help": "auto 表示由程序根据 header + transport + payload 自动计算"
+        },
+        "identification": {
+          "label": "Identification",
+          "type": "int",
+          "default": 0,
+          "help": "若为 0，程序可按需要随机或自增填充"
+        },
+        "flags": {
+          "label": "Flags",
+          "type": "object",
+          "default": {"reserved":0,"DF":false,"MF":false},
+          "help": "Reserved(1bit), DF(禁止分片), MF(更多分片)"
+        },
+        "fragment_offset": {
+          "label": "Fragment Offset (单位：8 字节)",
+          "type": "int",
+          "default": 0,
+          "help": "以 8 字节为单位，0 表示未分片或首片"
+        },
+        "ttl": {
+          "label": "TTL",
+          "type": "int",
+          "default": 64,
+          "help": "典型默认 64"
+        },
+        "protocol": {
+          "label": "Protocol",
+          "type": "int",
+          "default": 17,
+          "help": "6=TCP, 17=UDP。交互中根据 transport_choice 值自动设置"
+        },
+        "header_checksum": {
+          "label": "IP Header Checksum",
+          "type": "hex16_or_auto",
+          "default": "auto",
+          "help": "auto 表示自动计算并填入；也可手动填写十六进制"
+        },
+        "src_ip": {
+          "label": "Source IP",
+          "type": "ipv4",
+          "default": "192.168.0.99",
+          "help": "点分十进制"
+        },
+        "dst_ip": {
+          "label": "Destination IP",
+          "type": "ipv4",
+          "default": "192.168.0.100",
+          "help": "点分十进制"
+        },
+        "options": {
+          "label": "IP Options (数组，每项为对象)",
+          "type": "array",
+          "default": [],
+          "help": "可选项格式示例：[{\"type\":\"NOP\"},{\"type\":\"RR\",\"length\":8,\"value\":\"...\"}]；IHL 会基于 options 自动调整"
+        }
+      }
+    },
+    "fragment": {
+      "enabled": true,
+      "fields": {
+        "auto_fragment": {
+          "label": "自动分片（根据 MTU 切分 payload）",
+          "type": "bool",
+          "default": false,
+          "help": "若 true，程序根据 mtu 自动切分 payload 并发送多个片"
+        },
+        "mtu": {
+          "label": "MTU（仅在 auto_fragment=true 时使用）",
+          "type": "int",
+          "default": 1500,
+          "help": "用于计算每片最多的 payload 字节数（考虑 IP/TCP/UDP header）"
+        },
+        "user_fragment_list": {
+          "label": "手动分片（用户指定多个 fragment 的属性）",
+          "type": "array",
+          "default": [],
+          "help": "每项示例：{\"id\":1234,\"flags\":{\"MF\":true},\"offset\":0,\"payload_hex\":\"...\"} 用于精细造包"
+        }
+      }
+    },
+    "transport_choice": {
+      "label": "传输层选择",
+      "type": "choice",
+      "choices": ["udp","tcp"],
+      "default": "udp",
+      "help": "选择 UDP 或 TCP；程序将根据选择启用对应字段并设置 ip.protocol"
+    },
+    "tcp": {
+      "enabled": true,
+      "fields": {
+        "enabled": {
+          "label": "启用 TCP 字段",
+          "type": "bool",
+          "default": false,
+          "help": "仅在 transport_choice==tcp 时生效"
+        },
+        "src_port": {
+          "label": "源端口 (SPORT)",
+          "type": "int",
+          "default": 12345
+        },
+        "dst_port": {
+          "label": "目的端口 (DPORT)",
+          "type": "int",
+          "default": 80
+        },
+        "seq_num": {
+          "label": "Sequence Number",
+          "type": "uint32",
+          "default": 0,
+          "help": "默认 0；可由程序随机生成或用户指定"
+        },
+        "ack_num": {
+          "label": "Acknowledgement Number",
+          "type": "uint32",
+          "default": 0
+        },
+        "data_offset": {
+          "label": "Data Offset (TCP header length, 32-bit words)",
+          "type": "int_or_auto",
+          "default": "auto",
+          "help": "auto 表示根据 options 自动计算，最小为 5"
+        },
+        "reserved": {
+          "label": "Reserved bits (3 bits)",
+          "type": "int",
+          "default": 0
+        },
+        "flags": {
+          "label": "TCP Flags",
+          "type": "object",
+          "default": {"NS":false,"CWR":false,"ECE":false,"URG":false,"ACK":false,"PSH":false,"RST":false,"SYN":true,"FIN":false},
+          "help": "可设置任意组合。注意：NS/CWR/ECE 是拓展位，可按需使用"
+        },
+        "window": {
+          "label": "Window Size",
+          "type": "int",
+          "default": 65535
+        },
+        "checksum": {
+          "label": "TCP Checksum",
+          "type": "hex16_or_auto",
+          "default": "auto",
+          "help": "auto 使用伪首部与 TCP header+payload 计算"
+        },
+        "urgent_ptr": {
+          "label": "Urgent Pointer",
+          "type": "int",
+          "default": 0
+        },
+        "options": {
+          "label": "TCP Options (数组)",
+          "type": "array",
+          "default": [
+            {"kind":"MSS","length":4,"value":1460},
+            {"kind":"WS","length":3,"value":7},
+            {"kind":"SACK_PERM","length":2},
+            {"kind":"TS","length":10,"value":{"ts_val":0,"ts_ecr":0}}
+          ],
+          "help": "常见选项：MSS, WS (window scale), SACK_PERM, TS (timestamp), NOP (1), EOL (0)"
+        }
+      }
+    },
+    "udp": {
+      "enabled": true,
+      "fields": {
+        "enabled": {
+          "label": "启用 UDP 字段",
+          "type": "bool",
+          "default": true,
+          "help": "仅在 transport_choice==udp 时生效"
+        },
+        "src_port": {
+          "label": "源端口 (SPORT)",
+          "type": "int",
+          "default": 11111
+        },
+        "dst_port": {
+          "label": "目的端口 (DPORT)",
+          "type": "int",
+          "default": 1111
+        },
+        "length": {
+          "label": "UDP Length",
+          "type": "int_or_auto",
+          "default": "auto",
+          "help": "auto 表示 8 (UDP header) + payload 长度"
+        },
+        "checksum": {
+          "label": "UDP Checksum",
+          "type": "hex16_or_auto",
+          "default": "auto",
+          "help": "0 表示未填写(可被内核填充)；auto 表示计算"
+        }
+      }
+    },
+    "payload": {
+      "enabled": true,
+      "fields": {
+        "encoding": {
+          "label": "有效载荷编码",
+          "type": "choice",
+          "choices": ["ascii","utf8","hex","base64","random"],
+          "default": "ascii",
+          "help": "若为 random，可设置 random.length 和 random.seed"
+        },
+        "data": {
+          "label": "Payload 数据",
+          "type": "string_or_hex",
+          "default": "Hello, world",
+          "help": "若 encoding==hex，请填 hex 字符串（不含 0x）"
+        },
+        "pad_to_len": {
+          "label": "填充到指定最小长度（字节，0 表示不填充）",
+          "type": "int",
+          "default": 0,
+          "help": "若设 >0 且 payload 较短，使用指定字节（例如 0x00）进行右填充"
+        },
+        "pad_byte": {
+          "label": "填充值 (0-255)",
+          "type": "int",
+          "default": 0
+        },
+        "repeat": {
+          "label": "重复 payload 次数（用于生成更大 payload）",
+          "type": "int",
+          "default": 1
+        }
+      }
+    },
+    "send": {
+      "enabled": true,
+      "fields": {
+        "count": {
+          "label": "发送次数",
+          "type": "int",
+          "default": 1,
+          "help": "发送 N 次，若 auto_fragment=true 且每次发送多个片，则统计为发送的总帧数"
+        },
+        "interval_s": {
+          "label": "发送间隔（秒）",
+          "type": "float",
+          "default": 1.0
+        },
+        "backend": {
+          "label": "发送后端",
+          "type": "choice",
+          "choices": ["af_inet","af_packet"],
+          "default": "af_inet",
+          "help": "af_inet 发送 IP 层报文（内核填充 L2），af_packet 发送完整以太帧（需要 iface）"
+        },
+        "iface": {
+          "label": "指定网卡（仅 af_packet 生效）",
+          "type": "string",
+          "default": "eth0",
+          "help": "网卡名，例如 eth0"
+        },
+        "dry_run": {
+          "label": "仅构造不发送 (dry-run)",
+          "type": "bool",
+          "default": false,
+          "help": "true 表示构造并打印 hex/pcap，不实际发送"
+        },
+        "wait_for_response_ms": {
+          "label": "发送后等待响应（毫秒，0 表示不等待）",
+          "type": "int",
+          "default": 0,
+          "help": "用于高级交互模式：发送后短暂监听以决定下一步（可选功能）"
+        }
+      }
+    },
+    "advanced": {
+      "enabled": true,
+      "fields": {
+        "force_root_check": {
+          "label": "检查 Root/CAP_NET_RAW 权限",
+          "type": "bool",
+          "default": true,
+          "help": "启动时强制检查并提示用户"
+        },
+        "ip_id_mode": {
+          "label": "IP Identification 填充模式",
+          "type": "choice",
+          "choices": ["manual","random","increment"],
+          "default": "random",
+          "help": "manual: 使用 ip.identification 字段；random: 每次随机；increment: 每次自增"
+        },
+        "tcp_seq_mode": {
+          "label": "TCP Seq 填充模式",
+          "type": "choice",
+          "choices": ["manual","random","timestamp"],
+          "default": "manual",
+          "help": "timestamp 模式使用时间戳作为 seq 起始值"
+        },
+        "checksum_offload": {
+          "label": "是否允许网卡校验和卸载（仅提示用）",
+          "type": "bool",
+          "default": true,
+          "help": "若为 true，则在构造校验和时仍可选择不计算交给网卡（取决于 backend、内核和网卡）"
+        },
+        "log_level": {
+          "label": "日志级别",
+          "type": "choice",
+          "choices": ["error","warn","info","debug"],
+          "default": "info"
+        }
+      }
+    }
+  }
+}
