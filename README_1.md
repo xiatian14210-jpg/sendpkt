@@ -109,7 +109,7 @@ Fragment
 TCP / UDP / Options
 
 二、工程结构
-sendpkt_v2/
+sendpkt/
 ├── Makefile
 ├── README.md
 ├── preset_full.json      # 完整网络帧 preset（核心）
@@ -124,8 +124,6 @@ sendpkt_v2/
 ├── utils.h
 ├── cJSON.c               
 └── cJSON.h               
-
-并修改 Makefile 使用系统库。
 
 三、编译与运行
 1. 编译
